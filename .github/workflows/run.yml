@@ -5,7 +5,7 @@ name: arXiv-daily-ai-enhanced
 
 on:
   schedule:
-    - cron: "30 1 * * *"
+    - cron: "30 1,13 * * *"
   workflow_dispatch:
 
 
@@ -60,6 +60,18 @@ jobs:
         
         echo "crawl_date=$today" >> $GITHUB_OUTPUT
         echo "爬取完成 / Crawling completed"
+
+    - name: Filter papers by keywords
+      id: keyword_filter
+      run: |
+        source .venv/bin/activate
+        today=${{ steps.crawl_step.outputs.crawl_date }}
+        echo "执行关键词硬过滤... / Applying keyword hard filter..."
+
+        cd daily_arxiv
+        export KEYWORDS="${{ vars.KEYWORDS }}"
+        python daily_arxiv/filter_keywords.py --data ../data/${today}.jsonl
+        echo "关键词过滤完成 / Keyword filtering completed"
         
     - name: Check for duplicates
       id: dedup_check

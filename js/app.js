@@ -18,6 +18,7 @@ let currentFilteredPapers = []; // 当前过滤后的论文列表
 let textSearchQuery = ''; // 实时文本搜索查询
 let previousActiveKeywords = null; // 文本搜索激活时，暂存之前的关键词激活集合
 let previousActiveAuthors = null; // 文本搜索激活时，暂存之前的作者激活集合
+let suggestedKeywords = []; // 根据当前论文自动生成的高频关键词
 
 // 加载用户的关键词设置
 function loadUserKeywords() {
@@ -66,9 +67,11 @@ function loadUserAuthors() {
 function renderFilterTags() {
   const filterTagsElement = document.getElementById('filterTags');
   const filterContainer = document.querySelector('.filter-label-container');
+  const hasUserAuthors = userAuthors && userAuthors.length > 0;
+  const hasUserKeywords = userKeywords && userKeywords.length > 0;
+  const hasSuggestedKeywords = suggestedKeywords && suggestedKeywords.length > 0;
   
-  // 如果没有作者和关键词，仅隐藏标签区域，保留容器（以显示搜索按钮）
-  if ((!userAuthors || userAuthors.length === 0) && (!userKeywords || userKeywords.length === 0)) {
+  if (!hasUserAuthors && !hasUserKeywords && !hasSuggestedKeywords) {
     filterContainer.style.display = 'flex';
     if (filterTagsElement) {
       filterTagsElement.style.display = 'none';
@@ -84,7 +87,7 @@ function renderFilterTags() {
   filterTagsElement.innerHTML = '';
   
   // 先添加作者标签
-  if (userAuthors && userAuthors.length > 0) {
+  if (hasUserAuthors) {
     userAuthors.forEach(author => {
       const tagElement = document.createElement('span');
       tagElement.className = `category-button author-button ${activeAuthors.includes(author) ? 'active' : ''}`;
@@ -109,7 +112,7 @@ function renderFilterTags() {
   }
   
   // 再添加关键词标签
-  if (userKeywords && userKeywords.length > 0) {
+  if (hasUserKeywords) {
     userKeywords.forEach(keyword => {
       const tagElement = document.createElement('span');
       tagElement.className = `category-button keyword-button ${activeKeywords.includes(keyword) ? 'active' : ''}`;
@@ -130,6 +133,20 @@ function renderFilterTags() {
           tagElement.classList.remove('tag-appear');
         }, 300);
       }
+    });
+  } else if (!hasUserAuthors && hasSuggestedKeywords) {
+    suggestedKeywords.forEach(keyword => {
+      const tagElement = document.createElement('span');
+      tagElement.className = `category-button keyword-button suggested-keyword ${activeKeywords.includes(keyword) ? 'active' : ''}`;
+      tagElement.textContent = keyword;
+      tagElement.dataset.keyword = keyword;
+      tagElement.title = "自动提取的高频关键词";
+      
+      tagElement.addEventListener('click', () => {
+        toggleKeywordFilter(keyword);
+      });
+      
+      filterTagsElement.appendChild(tagElement);
     });
   }
 }
@@ -839,7 +856,9 @@ async function loadPapersByDate(date) {
           </div>
         `;
         paperData = {};
+        suggestedKeywords = [];
         renderCategoryFilter({ sortedCategories: [], categoryCounts: {} });
+        renderFilterTags();
         return;
       }
       throw new Error(`HTTP ${response.status}`);
@@ -853,15 +872,19 @@ async function loadPapersByDate(date) {
         </div>
       `;
       paperData = {};
+      suggestedKeywords = [];
       renderCategoryFilter({ sortedCategories: [], categoryCounts: {} });
+      renderFilterTags();
       return;
     }
     
     paperData = parseJsonlData(text, date);
+    updateSuggestedKeywords();
 
     const categories = getAllCategories(paperData);
 
     renderCategoryFilter(categories);
+    renderFilterTags();
 
     // 如果URL中有category、json、author或keywords参数，直接返回JSON
     const hasJsonParams = urlCategoryParam !== null || urlJsonParam !== null || urlAuthorParam !== null || urlKeywordsParam !== null;
@@ -957,6 +980,65 @@ function getAllCategories(data) {
     }),
     categoryCounts: catePaperCount
   };
+}
+
+function getAllLoadedPapers(data) {
+  return Object.values(data || {}).flatMap(papers => Array.isArray(papers) ? papers : []);
+}
+
+function updateSuggestedKeywords() {
+  if ((userKeywords && userKeywords.length > 0) || (userAuthors && userAuthors.length > 0)) {
+    suggestedKeywords = [];
+    return;
+  }
+
+  const papers = getAllLoadedPapers(paperData);
+  const phraseScores = new Map();
+  const termPatterns = [
+    ['world model', /world\s+models?/gi],
+    ['vision-language', /vision[-\s]+language|vla\b|vlm\b/gi],
+    ['robot learning', /robot\s+learning|robotics?|manipulation/gi],
+    ['reinforcement learning', /reinforcement\s+learning|\brl\b/gi],
+    ['diffusion', /diffusion/gi],
+    ['gaussian splatting', /gaussian\s+splatting|3dgs/gi],
+    ['multimodal', /multi[-\s]?modal/gi],
+    ['reasoning', /reasoning/gi],
+    ['agent', /\bagents?\b/gi],
+    ['planning', /planning/gi],
+    ['benchmark', /benchmarks?/gi],
+    ['segmentation', /segmentation/gi],
+    ['detection', /detection/gi],
+    ['alignment', /alignment/gi],
+    ['transformer', /transformers?/gi],
+    ['llm', /\bllms?\b|large\s+language\s+models?/gi],
+    ['training', /training|fine[-\s]?tuning/gi],
+    ['evaluation', /evaluation|evaluating/gi]
+  ];
+
+  papers.forEach(paper => {
+    const text = [
+      paper.title,
+      paper.summary,
+      paper.details,
+      paper.motivation,
+      paper.method,
+      paper.result,
+      paper.conclusion
+    ].filter(Boolean).join(' ');
+
+    termPatterns.forEach(([label, pattern]) => {
+      const matches = text.match(pattern);
+      if (matches) {
+        const titleBoost = new RegExp(pattern.source, 'i').test(paper.title || '') ? 2 : 0;
+        phraseScores.set(label, (phraseScores.get(label) || 0) + matches.length + titleBoost);
+      }
+    });
+  });
+
+  suggestedKeywords = Array.from(phraseScores.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 12)
+    .map(([keyword]) => keyword);
 }
 
 function renderCategoryFilter(categories) {
@@ -1723,10 +1805,12 @@ async function loadPapersByDateRange(startDate, endDate) {
     }
     
     paperData = allPaperData;
+    updateSuggestedKeywords();
 
     const categories = getAllCategories(paperData);
 
     renderCategoryFilter(categories);
+    renderFilterTags();
 
     // 如果URL中有category、json、author或keywords参数，直接返回JSON
     const hasJsonParams = urlCategoryParam !== null || urlJsonParam !== null || urlAuthorParam !== null || urlKeywordsParam !== null;

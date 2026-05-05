@@ -34,6 +34,23 @@ def parse_args():
     parser.add_argument("--max_workers", type=int, default=1, help="Maximum number of parallel workers")
     return parser.parse_args()
 
+def format_ai_fields(ai_data: Dict) -> Dict:
+    """Keep persisted AI fields as strings for the existing frontend/Markdown pipeline."""
+    def clean_list_item(value: object) -> str:
+        text = str(value).strip()
+        return re.sub(r"^\s*(?:[-*]|\d+[.)）、])\s*", "", text).strip()
+
+    formatted = dict(ai_data)
+    for field in ("motivation", "method", "conclusion"):
+        value = formatted.get(field)
+        if isinstance(value, list):
+            formatted[field] = "\n".join(
+                f"{idx}. {cleaned}"
+                for idx, item in enumerate(value, start=1)
+                if (cleaned := clean_list_item(item))
+            )
+    return formatted
+
 def process_single_item(chain, item: Dict, language: str) -> Dict:
     def build_model_content(item: Dict) -> str:
         parts = [f"Title: {item.get('title', '')}"]
@@ -48,6 +65,9 @@ def process_single_item(chain, item: Dict, language: str) -> Dict:
         调用 spam.dw-dengwei.workers.dev 接口检测内容是否包含敏感词。
         返回 True 表示触发敏感词，False 表示未触发。
         """
+        if os.environ.get("ENABLE_SENSITIVE_CHECK", "false").lower() not in {"1", "true", "yes"}:
+            return False
+
         try:
             resp = requests.post(
                 "https://spam.dw-dengwei.workers.dev",
@@ -139,7 +159,7 @@ def process_single_item(chain, item: Dict, language: str) -> Dict:
             "language": language,
             "content": model_content
         })
-        item['AI'] = response.model_dump()
+        item['AI'] = format_ai_fields(response.model_dump())
     except langchain_core.exceptions.OutputParserException as e:
         # 尝试从错误信息中提取 JSON 字符串并修复
         error_msg = str(e)
@@ -157,7 +177,7 @@ def process_single_item(chain, item: Dict, language: str) -> Dict:
                 print(f"Failed to parse JSON for {item.get('id', 'unknown')}: {json_e}", file=sys.stderr)
         
         # Merge partial data with defaults to ensure all fields exist
-        item['AI'] = {**default_ai_fields, **partial_data}
+        item['AI'] = format_ai_fields({**default_ai_fields, **partial_data})
         print(f"Using partial AI data for {item.get('id', 'unknown')}: {list(partial_data.keys())}", file=sys.stderr)
     except Exception as e:
         # Catch any other exceptions and provide default values

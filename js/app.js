@@ -20,6 +20,14 @@ let previousActiveKeywords = null; // 文本搜索激活时，暂存之前的关
 let previousActiveAuthors = null; // 文本搜索激活时，暂存之前的作者激活集合
 let suggestedKeywords = []; // 根据当前论文自动生成的高频关键词
 
+function getDefaultKeywords() {
+  return window.DEFAULT_PREFERENCES?.keywords || [];
+}
+
+function getDefaultAuthors() {
+  return window.DEFAULT_PREFERENCES?.authors || [];
+}
+
 // 加载用户的关键词设置
 function loadUserKeywords() {
   const savedKeywords = localStorage.getItem('preferredKeywords');
@@ -34,8 +42,8 @@ function loadUserKeywords() {
       activeKeywords = [];
     }
   } else {
-    userKeywords = [];
-    activeKeywords = [];
+    userKeywords = getDefaultKeywords();
+    activeKeywords = [...userKeywords];
   }
   
   // renderKeywordTags();
@@ -56,8 +64,8 @@ function loadUserAuthors() {
       activeAuthors = [];
     }
   } else {
-    userAuthors = [];
-    activeAuthors = [];
+    userAuthors = getDefaultAuthors();
+    activeAuthors = [...userAuthors];
   }
   
   renderFilterTags();

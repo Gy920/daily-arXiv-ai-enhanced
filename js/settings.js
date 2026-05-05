@@ -4,6 +4,14 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchGitHubStats();
 });
 
+function getDefaultKeywords() {
+  return window.DEFAULT_PREFERENCES?.keywords || [];
+}
+
+function getDefaultAuthors() {
+  return window.DEFAULT_PREFERENCES?.authors || [];
+}
+
 // 初始化设置，从localStorage加载已保存的设置
 function initSettings() {
   // 关键词偏好设置
@@ -19,7 +27,7 @@ function loadKeywordPreferences() {
   
   // 获取保存的关键词，如果没有则使用默认关键词
   let savedKeywords = localStorage.getItem('preferredKeywords');
-  let keywords = []; // 默认无关键词
+  let keywords = getDefaultKeywords();
   
   if (savedKeywords) {
     try {
@@ -47,7 +55,7 @@ function loadAuthorPreferences() {
   
   // 获取保存的作者，如果没有则为空数组
   let savedAuthors = localStorage.getItem('preferredAuthors');
-  let authors = []; // 默认无作者
+  let authors = getDefaultAuthors();
   
   if (savedAuthors) {
     try {
@@ -406,14 +414,19 @@ function resetSettings() {
   // 重置关键词
   const selectedKeywordsContainer = document.getElementById('selectedKeywords');
   selectedKeywordsContainer.innerHTML = '';
+  getDefaultKeywords().forEach(keyword => {
+    addKeywordTag(keyword);
+  });
   
   // 重置作者
   const selectedAuthorsContainer = document.getElementById('selectedAuthors');
   selectedAuthorsContainer.innerHTML = '';
+  getDefaultAuthors().forEach(author => {
+    addAuthorTag(author);
+  });
   
-  // 显示空标签消息
-  showEmptyTagMessage();
-  showEmptyAuthorMessage();
+  localStorage.removeItem('preferredKeywords');
+  localStorage.removeItem('preferredAuthors');
   
   // 显示重置成功提示
   showNotification('Settings reset to default!', 'info');

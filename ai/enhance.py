@@ -35,6 +35,14 @@ def parse_args():
     return parser.parse_args()
 
 def process_single_item(chain, item: Dict, language: str) -> Dict:
+    def build_model_content(item: Dict) -> str:
+        parts = [f"Title: {item.get('title', '')}"]
+        if item.get("summary"):
+            parts.append(f"Abstract:\n{item.get('summary', '')}")
+        if item.get("full_text"):
+            parts.append(f"Full paper text extracted from arXiv source:\n{item.get('full_text', '')}")
+        return "\n\n".join(parts)
+
     def is_sensitive(content: str) -> bool:
         """
         调用 spam.dw-dengwei.workers.dev 接口检测内容是否包含敏感词。
@@ -53,10 +61,10 @@ def process_single_item(chain, item: Dict, language: str) -> Dict:
             else:
                 # 如果接口异常，默认不触发敏感词
                 print(f"Sensitive check failed with status {resp.status_code}", file=sys.stderr)
-                return True
+                return False
         except Exception as e:
             print(f"Sensitive check error: {e}", file=sys.stderr)
-            return True
+            return False
 
     def check_github_code(content: str) -> Dict:
         """提取并验证 GitHub 链接"""
@@ -105,7 +113,9 @@ def process_single_item(chain, item: Dict, language: str) -> Dict:
                 
         return code_info
 
-    # 检查 summary 字段
+    model_content = build_model_content(item)
+
+    # 检查 summary 字段；全文可能很长，避免对外部敏感词接口提交整篇论文。
     if is_sensitive(item.get("summary", "")):
         return None
 
@@ -127,7 +137,7 @@ def process_single_item(chain, item: Dict, language: str) -> Dict:
     try:
         response: Structure = chain.invoke({
             "language": language,
-            "content": item['summary']
+            "content": model_content
         })
         item['AI'] = response.model_dump()
     except langchain_core.exceptions.OutputParserException as e:

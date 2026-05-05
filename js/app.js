@@ -1583,13 +1583,25 @@ function showPaperDetails(paper, paperIndex) {
   
   const modalContent = `
     <div class="paper-details ${matchedPaperClass}">
-      <p><strong>Authors: </strong>${highlightedAuthors}</p>
-      <p><strong>Categories: </strong>${categoryDisplay}</p>
-      <p><strong>Date: </strong>${formatDate(paper.date)}</p>
-      
-      
-      <h3>TL;DR</h3>
-      <p>${highlightedSummary}</p>
+      <div class="paper-meta-grid">
+        <div class="paper-meta-row">
+          <span class="paper-meta-label">Authors</span>
+          <span class="paper-meta-value">${highlightedAuthors}</span>
+        </div>
+        <div class="paper-meta-row">
+          <span class="paper-meta-label">Categories</span>
+          <span class="paper-meta-value">${categoryDisplay}</span>
+        </div>
+        <div class="paper-meta-row">
+          <span class="paper-meta-label">Date</span>
+          <span class="paper-meta-value">${formatDate(paper.date)}</span>
+        </div>
+      </div>
+
+      <section class="paper-detail-block paper-tldr-block">
+        <h3>TL;DR</h3>
+        <p>${highlightedSummary}</p>
+      </section>
       
       <div class="paper-sections">
         ${paper.motivation ? `<div class="paper-section"><h4>Motivation</h4><p>${highlightedMotivation}</p></div>` : ''}
@@ -1598,7 +1610,7 @@ function showPaperDetails(paper, paperIndex) {
         ${paper.conclusion ? `<div class="paper-section"><h4>Conclusion</h4><p>${highlightedConclusion}</p></div>` : ''}
       </div>
       
-      ${highlightedAbstract ? `<h3>Abstract</h3><p class="original-abstract">${highlightedAbstract}</p>` : ''}
+      ${highlightedAbstract ? `<section class="paper-detail-block"><h3>Abstract</h3><p class="original-abstract">${highlightedAbstract}</p></section>` : ''}
       
       <div class="pdf-preview-section">
         <div class="pdf-header">
